@@ -1,6 +1,16 @@
 use chrono::{NaiveDate, NaiveDateTime};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use validator::Validate;
+
+// Custom validator for Decimal > 0
+fn validate_positive_decimal(value: &Decimal) -> Result<(), validator::ValidationError> {
+    if *value > Decimal::ZERO {
+        Ok(())
+    } else {
+        Err(validator::ValidationError::new("payment_must_be_positive"))
+    }
+}
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct Site {
@@ -12,7 +22,7 @@ pub struct Site {
     pub required_handymen:  i32,
     pub start_date:         NaiveDate,
     pub end_date:           NaiveDate,
-    pub payment_per_day:    Decimal,  // ← was f64
+    pub payment_per_day:    Decimal,
     pub description:        Option<String>,
     pub posted_at:          NaiveDateTime,
 }
@@ -27,7 +37,7 @@ pub struct SiteWithSkills {
     pub required_handymen:  i32,
     pub start_date:         NaiveDate,
     pub end_date:           NaiveDate,
-    pub payment_per_day:    Decimal,  // ← was f64
+    pub payment_per_day:    Decimal,
     pub description:        Option<String>,
     pub posted_at:          NaiveDateTime,
     pub skills:             Vec<String>,
@@ -52,15 +62,56 @@ impl SiteWithSkills {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateSitePayload {
+    #[validate(length(min = 3, max = 255, message = "Title must be between 3 and 255 characters"))]
     pub title:              String,
+
+    #[validate(length(min = 3, max = 255, message = "Address must be between 3 and 255 characters"))]
     pub address:            String,
+
+    #[validate(length(min = 3, max = 100, message = "Invalid coordinates format"))]
     pub coordinates:        String,
+
+    #[validate(range(min = 1, max = 1000, message = "Required handymen must be between 1 and 1000"))]
     pub required_handymen:  i32,
+
+    #[validate(length(min = 1, max = 20, message = "Must provide between 1 and 20 skills"))]
     pub skills_required:    Vec<String>,
+
     pub start_date:         NaiveDate,
     pub end_date:           NaiveDate,
-    pub payment_per_day:    Decimal,  // ← was f64
+
+    #[validate(custom(function = "validate_positive_decimal"))]
+    pub payment_per_day:    Decimal,
+
+    #[validate(length(max = 1000, message = "Description cannot exceed 1000 characters"))]
+    pub description:        Option<String>,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateSitePayload {
+    #[validate(length(min = 3, max = 255, message = "Title must be between 3 and 255 characters"))]
+    pub title:              Option<String>,
+
+    #[validate(length(min = 3, max = 255, message = "Address must be between 3 and 255 characters"))]
+    pub address:            Option<String>,
+
+    #[validate(length(min = 3, max = 100, message = "Invalid coordinates format"))]
+    pub coordinates:        Option<String>,
+
+    #[validate(range(min = 1_i32, max = 1000_i32, message = "Required handymen must be between 1 and 1000"))]
+    pub required_handymen:  Option<i32>,
+
+    #[validate(length(min = 1, max = 20, message = "Must provide between 1 and 20 skills"))]
+    pub skills_required:    Option<Vec<String>>,
+
+    pub start_date:         Option<NaiveDate>,
+    pub end_date:           Option<NaiveDate>,
+
+    #[validate(custom(function = "validate_positive_decimal"))]
+    pub payment_per_day:    Option<Decimal>,
+
+    #[validate(length(max = 1000, message = "Description cannot exceed 1000 characters"))]
     pub description:        Option<String>,
 }
